@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIMPEG Puskesmas Pademangan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap');
+        
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white; padding: 0; margin: 0; }
+            .content-area { padding: 0 !important; }
+            .card-print { 
+                border: none !important; 
+                box-shadow: none !important; 
+                padding: 0 !important;
+                margin: 0 !important;
+                border-radius: 0 !important;
+            }
+            .kop-surat-print { 
+                display: block !important; 
+                border-bottom: 3px solid #064e3b !important;
+                margin-bottom: 1.5rem !important;
+                padding-bottom: 0.75rem !important;
+                text-align: center !important;
+            }
+        }
+        
+        .print-only { display: none; }
+        .kop-surat-print { display: none; }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            outline: none;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+        .form-input:focus {
+            border-color: #10b981;
+            background-color: white;
+        }
+        
+        .label-text {
+            display: block;
+            font-size: 10px;
+            font-weight: 800;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }
+
+        .detail-row {
+            display: flex;
+            padding: 6px 0;
+            border-bottom: 1px solid #f3f4f6;
+            align-items: flex-start;
+        }
+        .detail-label {
+            width: 140px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #4b5563;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: justify;
+        }
+        .detail-separator {
+            padding: 0 4px;
+            font-size: 11px;
+            color: #1f2937;
+        }
+        .detail-value {
+            flex: 1;
+            font-size: 11px;
+            color: #1f2937;
+            text-align: left;
+            word-wrap: break-word;
+            white-space: pre-wrap; 
+            line-height: 1.5;
+        }
+
+        .stat-card {
+            transition: transform 0.2s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-4px);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+<div id="app"></div>
+
+<script>
+let state = {
+    isLoggedIn: false,
+    view: 'dashboard', 
+    pegawai: JSON.parse(localStorage.getItem('simpeg_pkm_db_v3')) || [],
+    selectedPegawai: null,
+    showPassword: false
+};
+
+function saveState() {
+    localStorage.setItem('simpeg_pkm_db_v3', JSON.stringify(state.pegawai));
+}
+
+function navigate(view, data = null) {
+    state.view = view;
+    if (data) state.selectedPegawai = data;
+    render();
+    window.scrollTo(0,0);
+}
+
+function togglePasswordVisibility() {
+    state.showPassword = !state.showPassword;
+    const passInput = document.getElementById('login-password');
+    const eyeIcon = document.getElementById('eye-icon');
+    if (state.showPassword) {
+        passInput.type = 'text';
+        eyeIcon.innerHTML = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line>`;
+    } else {
+        passInput.type = 'password';
+        eyeIcon.innerHTML = `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>`;
+    }
+}
+
+function render() {
+    const app = document.getElementById('app');
+    
+    if (!state.isLoggedIn) {
+        app.innerHTML = renderLogin();
+        return;
+    }
+
+    app.innerHTML = `
+        <div class="flex flex-col md:flex-row min-h-screen">
+            <aside class="w-full md:w-64 bg-emerald-900 text-white no-print flex flex-col shrink-0">
+                <div class="p-6 border-b border-emerald-800">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-emerald-900 font-bold">P</div>
+                        <span class="font-bold tracking-tight text-sm uppercase">SIMPEG Pademangan</span>
+                    </div>
+                </div>
+                <nav class="mt-6 flex-1 px-4 space-y-2">
+                    <button onclick="navigate('dashboard')" class="w-full flex items-center gap-3 py-3 px-4 rounded-xl transition ${state.view === 'dashboard' ? 'bg-emerald-700' : 'hover:bg-emerald-800'}">
+                        <span>📊</span> <span class="text-sm font-semibold">Dashboard</span>
+                    </button>
+                    <button onclick="navigate('pegawai')" class="w-full flex items-center gap-3 py-3 px-4 rounded-xl transition ${['pegawai', 'tambah', 'edit', 'preview'].includes(state.view) ? 'bg-emerald-700' : 'hover:bg-emerald-800'}">
+                        <span>👥</span> <span class="text-sm font-semibold">Data Pegawai</span>
+                    </button>
+                </nav>
+                <div class="p-4 border-t border-emerald-800">
+                    <button onclick="state.isLoggedIn=false;render();" class="w-full flex items-center gap-3 py-3 px-4 rounded-xl hover:bg-red-600 transition">
+                        <span>🚪</span> <span class="text-sm font-semibold">Keluar</span>
+                    </button>
+                </div>
+            </aside>
+
+            <main class="flex-1 content-area">
+                <header class="bg-white border-b border-gray-100 p-6 flex justify-between items-center no-print">
+                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Akses Admin: Aktif</div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right"><p class="text-xs font-bold">Admin Puskesmas</p></div>
+                        <div class="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold">A</div>
+                    </div>
+                </header>
+                <div class="p-6 md:p-8">${renderView()}</div>
+            </main>
+        </div>
+    `;
+}
+
+function renderLogin() {
+    return `
+        <div class="flex items-center justify-center min-h-screen bg-emerald-950 px-4">
+            <div class="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-md">
+                <div class="text-center mb-8">
+                    <div class="w-16 h-16 bg-emerald-600 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl font-black mb-4">P</div>
+                    <h2 class="text-2xl font-black text-emerald-900 uppercase tracking-tighter">Login SIMPEG</h2>
+                    <p class="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Puskesmas Pademangan</p>
+                </div>
+                <form onsubmit="event.preventDefault();state.isLoggedIn=true;navigate('dashboard');" class="space-y-4">
+                    <div>
+                        <label class="label-text">Username</label>
+                        <input type="text" class="form-input" placeholder="" required>
+                    </div>
+                    <div>
+                        <label class="label-text">Password</label>
+                        <div class="relative">
+                            <input type="password" id="login-password" class="form-input pr-10" placeholder="" required>
+                            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-emerald-600">
+                                <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-600 text-white p-4 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-emerald-700 transition">Masuk Sistem</button>
+                </form>
+            </div>
+        </div>
+    `;
+}
+
+function renderView() {
+    switch (state.view) {
+        case 'dashboard': return renderDashboard();
+        case 'pegawai': return renderPegawaiList();
+        case 'tambah': return renderForm();
+        case 'edit': return renderForm(state.selectedPegawai);
+        case 'preview': return renderPreview(state.selectedPegawai);
+    }
+}
+
+function renderDashboard() {
+    const stats = {
+        total: state.pegawai.length,
+        pns: state.pegawai.filter(p => p.status === 'PNS').length,
+        nonPns: state.pegawai.filter(p => p.status === 'NON PNS').length,
+        pjlp: state.pegawai.filter(p => p.status === 'PJLP').length
+    };
+
+    return `
+        <div class="mb-8">
+            <h1 class="text-2xl font-black text-gray-800 uppercase tracking-tight">Dashboard Statistik</h1>
+            <p class="text-gray-500 text-sm">Ringkasan data kepegawaian Puskesmas Pademangan.</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center text-xl text-emerald-600">👥</div>
+                    <div>
+                        <p class="label-text">Total Pegawai</p>
+                        <p class="text-2xl font-black text-gray-900">${stats.total}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-xl text-blue-600">🎖️</div>
+                    <div>
+                        <p class="label-text">Jumlah PNS</p>
+                        <p class="text-2xl font-black text-gray-900">${stats.pns}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center text-xl text-amber-600">📝</div>
+                    <div>
+                        <p class="label-text">Jumlah NON PNS</p>
+                        <p class="text-2xl font-black text-gray-900">${stats.nonPns}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 stat-card">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-rose-100 rounded-xl flex items-center justify-center text-xl text-rose-600">🛠️</div>
+                    <div>
+                        <p class="label-text">Jumlah PJLP</p>
+                        <p class="text-2xl font-black text-gray-900">${stats.pjlp}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderPegawaiList() {
+    return `
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-2xl font-black text-gray-800 uppercase tracking-tight">Daftar Pegawai</h1>
+            <button onclick="navigate('tambah')" class="bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-emerald-700 font-bold text-xs uppercase tracking-widest">+ Tambah Pegawai</button>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-50 border-b border-gray-100">
+                    <tr class="text-[10px] uppercase font-bold text-gray-400">
+                        <th class="p-4 w-12 text-center">No</th>
+                        <th class="p-4">Foto</th>
+                        <th class="p-4">Nama / NIP</th>
+                        <th class="p-4">Jabatan</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4 text-center">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                    ${state.pegawai.length === 0 ? '<tr><td colspan="6" class="p-10 text-center text-gray-400 italic text-sm">Belum ada data pegawai.</td></tr>' : ''}
+                    ${state.pegawai.map((p, index) => `
+                        <tr class="hover:bg-gray-50 transition">
+                            <td class="p-4 text-center text-xs font-bold text-gray-400">${index + 1}</td>
+                            <td class="p-4"><img src="${p.foto || 'https://via.placeholder.com/150'}" class="w-10 h-12 object-cover rounded-md border"></td>
+                            <td class="p-4"><div class="font-bold text-sm text-gray-800">${p.nama}</div><div class="text-[10px] text-gray-400">${p.nip || '-'}</div></td>
+                            <td class="p-4 text-xs font-semibold text-gray-600">${p.jabatan_utama}</td>
+                            <td class="p-4">
+                                <span class="px-2 py-1 text-[9px] font-bold rounded-full uppercase border ${
+                                    p.status === 'PNS' ? 'bg-blue-50 text-blue-600 border-blue-100' : 
+                                    p.status === 'PJLP' ? 'bg-rose-50 text-rose-600 border-rose-100' : 
+                                    'bg-amber-50 text-amber-600 border-amber-100'
+                                }">
+                                    ${p.status}
+                                </span>
+                            </td>
+                            <td class="p-4">
+                                <div class="flex justify-center gap-2">
+                                    <button onclick="navigate('preview', state.pegawai.find(x => x.id === ${p.id}))" class="p-2 bg-gray-100 rounded-lg hover:bg-emerald-600 hover:text-white transition" title="Lihat">👁️</button>
+                                    <button onclick="state.selectedPegawai=state.pegawai.find(x=>x.id===${p.id});navigate('edit', state.selectedPegawai)" class="p-2 bg-gray-100 rounded-lg hover:bg-amber-500 hover:text-white transition" title="Edit">✏️</button>
+                                    <button onclick="navigate('preview', state.pegawai.find(x => x.id === ${p.id})); setTimeout(() => window.print(), 500);" class="p-2 bg-gray-100 rounded-lg hover:bg-blue-600 hover:text-white transition" title="Cetak">🖨️</button>
+                                    <button onclick="if(confirm('Hapus data pegawai ini?')){state.pegawai=state.pegawai.filter(x=>x.id!==${p.id});saveState();render();}" class="p-2 bg-gray-100 rounded-lg hover:bg-red-600 hover:text-white transition" title="Hapus">🗑️</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderForm(data = null) {
+    const isEdit = !!data;
+    return `
+        <div class="max-w-4xl mx-auto bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+            <h2 class="text-xl font-bold mb-8 uppercase text-emerald-900 border-b pb-4">${isEdit ? 'Ubah Data Pegawai' : 'Tambah Data Pegawai'}</h2>
+            <form onsubmit="handleSave(event)" class="space-y-6">
+                <input type="hidden" id="f_id" value="${data ? data.id : ''}">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="label-text">Pas Foto (Format Gambar)</label>
+                        <input type="file" onchange="handleFile(this)" class="text-xs mb-2">
+                        <input type="hidden" id="f_foto_data" value="${data ? data.foto : ''}">
+                        <img id="f_preview_img" src="${data?.foto || ''}" class="w-20 h-24 object-cover border rounded shadow-sm ${data?.foto ? '' : 'hidden'}">
+                    </div>
+                    <div><label class="label-text">Nama Lengkap & Gelar</label><input type="text" id="f_nama" value="${data ? data.nama : ''}" class="form-input" required></div>
+                    <div><label class="label-text">NIP (Nomor Induk Pegawai)</label><input type="text" id="f_nip" value="${data ? data.nip : ''}" class="form-input" placeholder=""></div>
+                    <div>
+                        <label class="label-text">Status Kepegawaian</label>
+                        <select id="f_status" class="form-input">
+                            <option value="PNS" ${data?.status==='PNS'?'selected':''}>PNS</option>
+                            <option value="NON PNS" ${data?.status==='NON PNS'?'selected':''}>NON PNS</option>
+                            <option value="PJLP" ${data?.status==='PJLP'?'selected':''}>PJLP</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="label-text">Jenis Kelamin</label>
+                        <select id="f_jk" class="form-input">
+                            <option value="Laki-laki" ${data?.jk==='Laki-laki'?'selected':''}>Laki-laki</option>
+                            <option value="Perempuan" ${data?.jk==='Perempuan'?'selected':''}>Perempuan</option>
+                        </select>
+                    </div>
+                    <div><label class="label-text">Tempat Lahir</label><input type="text" id="f_tmpt" value="${data ? data.tmpt_lahir : ''}" class="form-input"></div>
+                    <div><label class="label-text">Tanggal Lahir</label><input type="date" id="f_tgl" value="${data ? data.tgl_lahir : ''}" class="form-input"></div>
+                    <div><label class="label-text">No. HP / WhatsApp</label><input type="text" id="f_hp" value="${data ? data.hp : ''}" class="form-input"></div>
+                </div>
+                <div><label class="label-text">Alamat Lengkap (Domisili)</label><textarea id="f_alamat" class="form-input h-20">${data ? data.alamat : ''}</textarea></div>
+                <div><label class="label-text">Jabatan Utama</label><input type="text" id="f_jab_u" value="${data ? data.jabatan_utama : ''}" class="form-input"></div>
+                <div><label class="label-text">Jabatan Tambahan / Lainnya</label><input type="text" id="f_jab_l" value="${data ? data.jab_lainnya : ''}" class="form-input"></div>
+                <div><label class="label-text">Uraian Tugas Singkat</label><textarea id="f_uraian" class="form-input h-24" placeholder="Contoh:\n1. Melakukan pemeriksaan...\n2. Menyusun laporan...">${data ? data.uraian : ''}</textarea></div>
+                <div class="flex gap-3 pt-6">
+                    <button type="submit" class="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-emerald-700 transition">Simpan Data</button>
+                    <button type="button" onclick="navigate('pegawai')" class="px-6 bg-gray-100 text-gray-400 font-bold rounded-xl uppercase text-xs">Batalkan</button>
+                </div>
+            </form>
+        </div>
+    `;
+}
+
+function renderPreview(data) {
+    return `
+        <div class="max-w-4xl mx-auto mb-6 no-print flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <button onclick="navigate('pegawai')" class="text-xs font-bold text-gray-500 bg-gray-50 px-4 py-2 rounded-lg hover:bg-gray-100 transition">← Kembali</button>
+            <div class="flex gap-2">
+                <button onclick="window.print()" class="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold text-[10px] uppercase shadow hover:bg-blue-700 transition flex items-center gap-2">
+                    <span>💾</span> SIMPAN PDF
+                </button>
+                <button onclick="window.print()" class="bg-emerald-600 text-white px-5 py-2 rounded-lg font-bold text-[10px] uppercase shadow hover:bg-emerald-700 transition flex items-center gap-2">
+                    <span>🖨️</span> PRINTER
+                </button>
+            </div>
+        </div>
+
+        <div class="max-w-3xl mx-auto bg-white p-10 shadow-sm border border-gray-100 card-print min-h-[900px]">
+            <!-- Kop Surat -->
+            <div class="text-center border-b-[3px] border-emerald-900 pb-3 mb-6 kop-surat-print" style="display:block;">
+                <h1 class="text-xl font-black uppercase text-emerald-900 leading-none mb-1">SISTEM INFORMASI KEPEGAWAIAN</h1>
+                <h2 class="text-lg font-extrabold uppercase text-emerald-800 leading-none">PUSKESMAS PADEMANGAN</h2>
+                <div class="w-full h-0.5 bg-emerald-900 my-1"></div>
+                <p class="text-[10px] font-bold text-gray-400 tracking-[0.4em] uppercase">Profil Data Pegawai</p>
+            </div>
+
+            <div class="flex flex-row gap-8 items-start">
+                <!-- Bagian Foto -->
+                <div class="w-32 shrink-0">
+                    <img src="${data.foto || 'https://via.placeholder.com/150'}" class="w-full aspect-[3/4] object-cover border-2 border-gray-100 shadow rounded-lg mb-2">
+                    <div class="text-center">
+                        <span class="text-[9px] font-bold text-emerald-600 uppercase border border-emerald-100 bg-emerald-50 px-2 py-0.5 rounded-full inline-block">${data.status}</span>
+                    </div>
+                </div>
+
+                <!-- Bagian Data -->
+                <div class="flex-1">
+                    <div class="space-y-0 text-[11px]">
+                        <div class="detail-row"><span class="detail-label">Nama</span><span class="detail-separator">:</span><span class="detail-value">${data.nama}</span></div>
+                        <div class="detail-row"><span class="detail-label">NIP</span><span class="detail-separator">:</span><span class="detail-value">${data.nip || '-'}</span></div>
+                        <div class="detail-row"><span class="detail-label">Jenis Kelamin</span><span class="detail-separator">:</span><span class="detail-value">${data.jk}</span></div>
+                        <div class="detail-row"><span class="detail-label">Tempat, Tgl Lahir</span><span class="detail-separator">:</span><span class="detail-value">${data.tmpt_lahir || '-'}, ${data.tgl_lahir || '-'}</span></div>
+                        <div class="detail-row"><span class="detail-label">No. Telepon / WA</span><span class="detail-separator">:</span><span class="detail-value">${data.hp || '-'}</span></div>
+                        <div class="detail-row"><span class="detail-label">Alamat Domisili</span><span class="detail-separator">:</span><span class="detail-value">${data.alamat || '-'}</span></div>
+                        <div class="detail-row"><span class="detail-label">Jabatan Utama</span><span class="detail-separator">:</span><span class="detail-value">${data.jabatan_utama}</span></div>
+                        <div class="detail-row"><span class="detail-label">Jabatan Tambahan</span><span class="detail-separator">:</span><span class="detail-value">${data.jab_lainnya || '-'}</span></div>
+                        <!-- Uraian Pekerjaan Sekarang Sejajar Secara Vertikal -->
+                        <div class="detail-row border-none"><span class="detail-label">Uraian Pekerjaan</span><span class="detail-separator">:</span><span class="detail-value">${data.uraian || '-'}</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Dokumen Digital -->
+            <div class="mt-24 text-center text-[8px] text-gray-300 font-bold uppercase tracking-widest italic print-only border-t pt-4">
+                Dokumen Digital SIMPEG Puskesmas Pademangan | Dicetak Otomatis oleh Sistem
+            </div>
+        </div>
+    `;
+}
+
+function handleFile(input) {
+    const file = input.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('f_foto_data').value = e.target.result;
+            const preview = document.getElementById('f_preview_img');
+            preview.src = e.target.result;
+            preview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function handleSave(e) {
+    e.preventDefault();
+    const id = document.getElementById('f_id').value;
+    const data = {
+        id: id ? parseInt(id) : Date.now(),
+        nama: document.getElementById('f_nama').value,
+        nip: document.getElementById('f_nip').value,
+        jk: document.getElementById('f_jk').value,
+        status: document.getElementById('f_status').value,
+        tmpt_lahir: document.getElementById('f_tmpt').value,
+        tgl_lahir: document.getElementById('f_tgl').value,
+        alamat: document.getElementById('f_alamat').value,
+        jabatan_utama: document.getElementById('f_jab_u').value,
+        jab_lainnya: document.getElementById('f_jab_l').value,
+        uraian: document.getElementById('f_uraian').value,
+        hp: document.getElementById('f_hp').value,
+        foto: document.getElementById('f_foto_data').value
+    };
+
+    if (id) {
+        const idx = state.pegawai.findIndex(p => p.id === parseInt(id));
+        state.pegawai[idx] = data;
+    } else {
+        state.pegawai.push(data);
+    }
+    saveState();
+    navigate('pegawai');
+}
+
+window.onload = render;
+</script>
+</body>
+</html>
